@@ -772,8 +772,9 @@ int main(int argc, char *argv[])
 	//pthread_create(&tid3, NULL, SendMyName, NULL);//send query_broadcast in every 5 seconds
 
 	pthread_join(tid2, NULL);
+	pthread_join(tid3, NULL);
 	pthread_join(tid, NULL);
-	//pthread_join(tid3, NULL);
+	
 
 	return 0;
 }
