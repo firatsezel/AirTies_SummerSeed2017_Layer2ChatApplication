@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "packets.h"
+#include "LinkedList.h"
 
 #define BROAD_MAC0	0xFF
 #define BROAD_MAC1	0xFF
@@ -39,13 +40,16 @@
 #define DEFAULT_IF	"eth0"
 #define BUF_SIZ		1024
 
+#define bcastsize 21
+#define ucastsize 41
+#define hcastsize 41
+#define ccastsize 54
+#define cacastsize 2
+#define ecastsize 21
+
 //pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 //pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-static int length();//returns length of list
-static void printList();//prints list
-static void insert(char mac[6], char *name, char *surname);//inserts element to end of the list
-static int findNormal(char mac[6]);//finding given hash value via comparing all values from list start to end
 static void fill_query_bcast(struct query_bcast *q);
 static void fill_chat(struct chat *q, char *message);
 void sendChatMessage(char *message, char *name, char *surname, int type);
@@ -62,23 +66,11 @@ static uint8_t ecast[21];
 char *netInterface;
 char mac1[6];
 char mac2[6];
-char AddressMac[6];
 char ChatAckMac[6];
 uint8_t MyMacAddress[6];
 
 int sockfd, sockfa, sockfc, sockfack, sockmac;
 uint8_t packageid = 1;
-
-//linked list structure
-struct node {
-   char macAd[6];
-   char *name;
-   char *surname;
-   unsigned long hash;
-   struct node *next;
-};
-
-struct node *head = NULL;
 
 /*get mac address of this computer*/
 static void getMAC(){
@@ -123,167 +115,7 @@ static void getMAC(){
 	MyMacAddress[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
 }
 
-//display the list - Listing includes chaining
-static void printList() {
-   struct node *ptr = head;
-   struct node *chains;
-   struct node *temp;
-   
-   printf("LIST : \n");
-   //start from the beginning
-   while(ptr != NULL) {
-      printf("%s %s \n",ptr->name, ptr->surname);
-      temp = ptr;
-      ptr = ptr->next;
-   }
-}
 
-unsigned long hash(char str[6])
-{
-    unsigned long hash = 5381;
-    int c;
-    int i;
-    int endofsize = 0;
-    for(i = 0; i < 6; i++){
-	c = str[i];
-	hash = (((hash << 5) + (hash * c))) + (c * 37);
-    }
-   
-    return hash;
-}
-
-//delete function for linked list
-static int delete(char *name , char *surname){
-
-    if(head != NULL){
-	    struct node *temp = (struct node *)malloc(sizeof(struct node));
-	    struct node *right =  (struct node *)malloc(sizeof(struct node));
-
-	    struct node *current;
-	    current = head;
-	    for(current; current != NULL; current = current->next) {
-		 if(current->next != NULL){
-			right = current->next;
-		 }else{
-			if((strcmp(current->name, name) == 0) && (strcmp(current->surname, surname) == 0)){
-				head = NULL;
-				return 1;
-		  	}
-		 }
-		 if((strcmp(right->name, name) == 0) && (strcmp(right->surname, surname) == 0)){
-		 	if(right->next != NULL){
-				current->next = right->next;	
-				return 1;	
-			}else{
-				current->next = NULL;	
-				return 1;;	
-			}
-		 }
-	    }
-    }else{
-	return -1;
-    }
-
-    return -1;
-}
-
-//insert last location
-static void insert(char mac[6], char *name, char *surname) {
-    
-    struct node *temp =  (struct node *)malloc(sizeof(struct node));
-    struct node *right =  (struct node *)malloc(sizeof(struct node));
-    memcpy(temp->macAd, mac, 6);    
-    temp->name = strdup(name);
-    temp->surname = strdup(surname);
-    temp->hash = hash(mac);
-	
-    if(head == NULL){
-	head = temp;
-	head->next = NULL;
-    }else{
-	right = head;
-   
-    	while(right->next != NULL){
-    		right=right->next;
-    	}
-    	right->next = temp;
-    	right=temp;
-    	right->next=NULL;
-    }
-}
-
-//returns length of list
-static int length() {
-   int length = 0;
-   struct node *current;
-	
-   for(current = head; current != NULL; current = current->next) {
-      length++;
-   }
-
-   return length;
-}
-
-/*finding value from sorted linked list starting from the 
-beginning of the list to the end of the list*/
-static int findNormal(char mac[6]){
-	
-   unsigned long hashval = hash(mac);
-   struct node *current;
-	int i = 0;
-   for(current = head; current != NULL; current = current->next) {
-        if(current->hash == hashval){
-        	return i;
-        }
-        i++;
-   }
-   return -1;
-
-}
-
-static int findName(char *name, char *surname){
-   struct node *current;
-   int i = 0;
-   for(current = head; current != NULL; current = current->next) {
-        if((strcmp(current->name, name) == 0) &&
-(strcmp(current->surname, surname) == 0)){
-		memcpy(AddressMac, current->macAd, 6);
-        	return i;
-        }
-        i++;
-   }
-   return -1;
-}
-
-static int findMac(char *name, char *surname){
-   struct node *current;
-   int i = 0;
-   for(current = head; current != NULL; current = current->next) {
-        if((strcmp(current->name, name) == 0) &&
-(strcmp(current->surname, surname) == 0)){
-		memcpy(current->macAd, AddressMac, 6);
-        	return 1;
-        }
-        i++;
-   }
-   return -1;
-}
-
-static int insertMac(char macad[6], char *name, char *surname){
-
-	if(head == NULL){
-		insert(macad, name, surname);	
-		return 1;
-	}else{
-		//if(findNormal(macad) == -1){
-			insert(macad, name, surname);	
-			return 2;
-		//}
-	}
-	
-	return 0;
-	
-}
 
 static void fill_query_bcast(struct query_bcast *q)
 {
@@ -509,19 +341,19 @@ repeat:	numbytes = recvfrom(sockfd, buf, BUF_SIZ, 0, NULL, NULL);
 	int macCount1 = 0;
 	int macCount2 = 0;
 	type[2] = buf[14];
-		if(type[2] == 0x00){
-			sizeofdata = 21;	
-		}else if(type[2] == 0x01){
-			sizeofdata= 41;
-		}else if(type[2] == 0x02){
-			sizeofdata= 41;
-		}else if(type[2] == 0x03){
-			sizeofdata= 54;
-		}else if(type[2] == 0x04){
-			sizeofdata= 2;
-		}else if(type[2] == 0x05){
-			sizeofdata= 21;
-		}
+	if(type[2] == 0x00){
+		sizeofdata = bcastsize;	
+	}else if(type[2] == 0x01){
+		sizeofdata= ucastsize;
+	}else if(type[2] == 0x02){
+		sizeofdata= hcastsize;
+	}else if(type[2] == 0x03){
+		sizeofdata= ccastsize;
+	}else if(type[2] == 0x04){
+		sizeofdata= cacastsize;
+	}else if(type[2] == 0x05){
+		sizeofdata= ecastsize;
+	}
 	for (i=0; i<numbytes; i++){
 		if(i >= 0 && i <=5){
 			mac1[macCount1] = buf[i];
@@ -554,7 +386,6 @@ repeat:	numbytes = recvfrom(sockfd, buf, BUF_SIZ, 0, NULL, NULL);
 			s++;
 		}	
 	} 
-	printf("DATA %02x\n", buf[14]);
 	if(buf[14] == 0x00){
 		decode_bcast();			
 	}else if(buf[14] == 0x01){
@@ -896,7 +727,7 @@ void *Send(void *vargp){
    			scanf("%s", message);
 
 			sendChatMessage(message, name, surname, 0);
-		}else if(strcmp(action, "exit") == 0){
+		}else if(strcmp(action, "exListenit") == 0){
 			sender(1);
 			exit(0);
 		}else if(strcmp(action, "online") == 0){
@@ -934,7 +765,7 @@ int main(int argc, char *argv[])
 
 	pthread_t tid;
 	pthread_t tid2;
-	//pthread_t tid3;
+	pthread_t tid3;
 	
 	pthread_create(&tid, NULL, Listen, NULL);//listen function
 	pthread_create(&tid2, NULL, Send, NULL);//ui function
